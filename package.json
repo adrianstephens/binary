@@ -1,0 +1,26 @@
+{
+  "name": "@isopodlabs/binary",
+  "version": "1.0.3",
+  "description": "A package for reading and writing binary data with TypeScript.",
+  "type": "module",
+  "main": "src/binary.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "echo \"No tests specified\" && exit 0"
+  },
+  "keywords": [
+    "binary",
+    "typescript",
+    "data",
+    "read",
+    "write"
+  ],
+  "author": "Adrian Stephens",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.13.8",
+    "eslint": "^9.21.0",
+    "typescript": "^4.0.0",
+    "typescript-eslint": "^8.26.0"
+  }
+}
