@@ -713,27 +713,11 @@ export class hex<T extends number|bigint> {
 	constructor(public value: T) {}
 	valueOf()	{ return this.value; }
 	toString()	{ return '0x' + this.value.toString(16); }
+};
+
+export function asHex<T extends TypeT<number|bigint>>(type: T) {
+	return as(type, hex);
 }
-
-export const XINT16 = as(UINT16, hex);
-export const XINT32 = as(UINT32, hex);
-export const XINT64 = as(UINT64, hex);
-
-export const XINT16_LE = as(UINT16_LE, hex);
-export const XINT32_LE = as(UINT32_LE, hex);
-export const XINT64_LE = as(UINT64_LE, hex);
-
-/*
-export function hex<T extends Type>(type: T) {
-	return {
-		...type,
-		toString(value: ReadType<T>) { return '0x' + value.toString(16); }
-	};
-}
-export const XINT16_LE = hex(UINT16_LE);
-export const XINT32_LE = hex(UINT32_LE);
-*/
-
 
 // enum types
 
@@ -774,8 +758,8 @@ export function Enum(e: EnumType) {
 		return results.join('+');
 	}
 	
-	return (x: number) => 
-		e2[x] ?? split_enum(x);
+	return (x: number|bigint) => 
+		e2[Number(x)] ?? split_enum(Number(x));
 }
 
 export function Flags(e: EnumType, noFalse: boolean) {
@@ -827,7 +811,7 @@ export function BitFields<T extends Record<string, number|BitField<any>>>(bitfie
 }
 
 //shortcuts
-export function asEnum<T extends TypeT<number>, E extends EnumType>(type: T, e: E) {
+export function asEnum<T extends TypeT<number|bigint>, E extends EnumType>(type: T, e: E) {
 	return as(type, Enum(e));
 }
 export function asFlags<T extends TypeT<number|bigint>, E extends EnumType>(type: T, e: E, noFalse = true) {
@@ -850,4 +834,26 @@ export class stream_endian extends stream {
 	constructor(data: Uint8Array, public be: boolean) {
 		super(data);
 	}
+}
+//-----------------------------------------------------------------------------
+//	memory utilities
+//-----------------------------------------------------------------------------
+
+export interface memory {
+	length?: bigint;
+	get(address: bigint, len: number): Uint8Array | Promise<Uint8Array>;
+}
+
+export const enum MEM {
+	NONE     	= 0,	// No permissions
+	READ     	= 1,	// Read permission
+	WRITE    	= 2,	// Write permission
+	EXECUTE  	= 4,	// Execute permission
+	RELATIVE	= 8,	// address is relative to dll base
+}
+export class MappedMemory {
+	constructor(public data: Uint8Array, public address: number, public flags: number) {}
+	resolveAddress(base: number)		{ return this.address; }
+	slice(begin: number, end?: number)	{ return new MappedMemory(this.data.subarray(begin, end), this.address + begin, this.flags); }
+	at(begin: number, length?: number)	{ return this.slice(begin - this.address, length && (begin - this.address + length)); }
 }

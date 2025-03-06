@@ -73,11 +73,6 @@ export function splitBinary(n : number|bigint, splits : number[]) {
 //	binary
 //-----------------------------------------------------------------------------
 
-export interface memory {
-	length?: bigint;
-	get(address: bigint, len: number): Uint8Array | Promise<Uint8Array>;
-}
-
 interface arrayBuffer {
 	length:			number;
 	buffer:			ArrayBuffer;
@@ -85,20 +80,6 @@ interface arrayBuffer {
 	byteOffset:		number;
 	slice(begin:	number, end?: number): arrayBuffer;
     [n: number]:	number;
-}
-
-export const enum MEM {
-	NONE     	= 0,	// No permissions
-	READ     	= 1,	// Read permission
-	WRITE    	= 2,	// Write permission
-	EXECUTE  	= 4,	// Execute permission
-	RELATIVE	= 8,	// address is relative to dll base
-}
-export class MappedMemory {
-	constructor(public data: Uint8Array, public address: number, public flags: number) {}
-	resolveAddress(base: number)		{ return this.address; }
-	slice(begin: number, end?: number)	{ return new MappedMemory(this.data.subarray(begin, end), this.address + begin, this.flags); }
-	at(begin: number, length?: number)	{ return this.slice(begin - this.address, length && (begin - this.address + length)); }
 }
 
 function pairSwap(a: arrayBuffer) {
