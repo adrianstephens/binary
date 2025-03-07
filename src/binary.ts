@@ -3,15 +3,15 @@ export * as utils from './binary_helpers';
 
 export interface _stream {
 	be?: boolean;
-	remaining:		()  				=>number;
-	remainder: 		()					=>any;
-	tell:			()  				=>number;
-	seek:			(offset: number)	=>void;
-	skip:			(offset: number)	=>void;
-	align:			(align: number) 	=>void;
-	dataview:		(len: number)   	=>DataView;
-	read_buffer:	(len: number)   	=>any;
-	write_buffer:	(value: Uint8Array)	=>void;
+	remaining(): number;
+	remainder(): any;
+	tell(): number;
+	seek(offset: number): void;
+	skip(offset: number): void;
+	align(align: number): void;
+	dataview(len: number): DataView;
+	read_buffer(len: number): any;
+	write_buffer(value: Uint8Array): void;
 }
 
 export interface TypeReaderT<T> { get(s: _stream, obj?: any): T }
@@ -22,9 +22,7 @@ export type TypeReader	= TypeReaderT<any> | { [key: string]: TypeReader; }
 export type TypeWriter	= TypeWriterT<any> | { [key: string]: TypeWriter; }
 export type Type 		= TypeT<any> | { [key: string]: Type; }
 
-interface MergeType<T> {
-	merge: T;
-}
+interface MergeType<T> { merge: T; }
 
 export type ReadType<T> = T extends TypeReaderT<infer R> ? R : 
 	{[K in keyof T]: T[K] extends TypeReaderT<infer R> ? (R extends MergeType<infer _U> ? never : R) : never}
@@ -97,12 +95,12 @@ export function write(s: _stream, type: TypeWriter, value: any) : void {
 
 type TypeX<T>	= TypeT<T> | ((obj: any)=>T) | T;
 
-function readx<T extends object|number|string|boolean>(s: _stream, type: TypeX<T>, obj: any): T {
+function readx<T extends object | number | string | boolean>(s: _stream, type: TypeX<T>, obj: any): T {
 	return typeof type === 'function' ? type(obj)
 		:	isReader(type) ?	type.get(s, obj)
 		:	type;
 }
-function writex<T extends object|number|string>(s: _stream, type: TypeX<T>, value: T) {
+function writex<T extends object | number | string>(s: _stream, type: TypeX<T>, value: T) {
 	if (isWriter(type))
 		type.put(s, value);
 }
@@ -172,7 +170,7 @@ export class stream implements _stream {
 	}
 }
 
-export class stream_grow extends stream {
+export class growingStream extends stream {
 	constructor(data?: Uint8Array) {
 		super(data ?? new Uint8Array(1024));
 	}
@@ -207,12 +205,18 @@ export class stream_grow extends stream {
 	}
 }
 
+export class stream_endian extends stream {
+	constructor(data: Uint8Array, public be: boolean) {
+		super(data);
+	}
+}
+
 class dummy_dataview implements DataView {
 	readonly buffer!: ArrayBuffer;
 	readonly byteLength!: number;
 	readonly byteOffset!: number;
 	readonly [Symbol.toStringTag]!: string;
-	constructor(public offset:number) {}
+	constructor(public offset: number) {}
 
 	getFloat32(_byteOffset: number, _littleEndian?: boolean): number	{ return this.offset; }
 	getFloat64(_byteOffset: number, _littleEndian?: boolean): number	{ return this.offset; }
@@ -263,16 +267,21 @@ export class dummy implements _stream {
 //	numeric types
 //-----------------------------------------------------------------------------
 
-function endian_from_stream<T extends number|bigint>(type: (be?: boolean)=>TypeT<T>) {
+type TypeNumber<T extends number> = T extends 8 | 16 | 24 | 32 | 40 | 48 | 56
+        ? TypeT<number>
+        : TypeT<bigint>;
+
+function endian_from_stream<T extends number | bigint>(type: (be?: boolean)=>TypeT<T>) {
 	return {
 		get(s: _stream) 		{ return type(s.be).get(s); },
 		put(s: _stream, v: T)	{ type(s.be).put(s, v); }
 	};
 }
 
-function endian<T extends number|bigint>(type: (be?: boolean)=>TypeT<T>, be?: boolean) {
+function endian<T extends number | bigint>(type: (be?: boolean)=>TypeT<T>, be?: boolean) {
 	return be === undefined ? endian_from_stream(type) : type(be);
 }
+
 
 //8 bit
 export const UINT8 = {
@@ -285,11 +294,11 @@ export const INT8 = {
 };
 
 //16 bit
-function _UINT16(be?:boolean) { return {
+function _UINT16(be?: boolean) { return {
 	get(s: _stream, ) 			{ return s.dataview(2).getUint16(0, !be); },
 	put(s: _stream, v: number)	{ s.dataview(2).setUint16(0, v, !be); }
 };}
-function _INT16(be?:boolean) { return {
+function _INT16(be?: boolean) { return {
 	get(s: _stream, ) 			{ return s.dataview(2).getInt16(0, !be); },
 	put(s: _stream, v: number)	{ s.dataview(2).setInt16(0, v, !be); }
 };}
@@ -301,11 +310,11 @@ export const UINT16		= endian_from_stream(_UINT16);
 export const INT16		= endian_from_stream(_INT16);
 
 //32 bit
-function _UINT32(be?:boolean) { return {
+function _UINT32(be?: boolean) { return {
 	get(s: _stream, ) 			{ return s.dataview(4).getUint32(0, !be); },
 	put(s: _stream, v: number)	{ s.dataview(4).setUint32(0, v, !be); }
 };}
-function _INT32(be?:boolean) { return {
+function _INT32(be?: boolean) { return {
 	get(s: _stream, ) 			{ return s.dataview(4).getInt32(0, !be); },
 	put(s: _stream, v: number)	{ s.dataview(4).setInt32(0, v, !be); }
 };}
@@ -317,30 +326,24 @@ export const UINT32 	= endian_from_stream(_UINT32);
 export const INT32 		= endian_from_stream(_INT32);
 
 //64 bit 
-function _UINT64(be?:boolean) { return {
+function _UINT64(be?: boolean) { return {
 	get(s: _stream, ) 			{ return utils.getBigUint(s.dataview(8), 8, !be); },
 	put(s: _stream, v: bigint)	{ utils.putBigUint(s.dataview(8), v, 8, !be); }
 };}
-function _INT64(be?:boolean) { return {
+function _INT64(be?: boolean) { return {
 	get(s: _stream, ) 			{ return utils.getBigInt(s.dataview(8), 8, !be); },
 	put(s: _stream, v: bigint)	{ utils.putBigUint(s.dataview(8), v, 8, !be); }
 };}
 
 export const UINT64_LE	= _UINT64(false);
 export const UINT64_BE	= _UINT64(true);
-export const UINT64		= endian_from_stream(_UINT64);
 export const INT64_LE	= _INT64(false);
 export const INT64_BE	= _INT64(true);
+export const UINT64		= endian_from_stream(_UINT64);
 export const INT64		= endian_from_stream(_INT64);
 
-
-// Helper type to infer the return type based on bits
-type TypeNumber<T extends number> = T extends 8 | 16 | 24 | 32 | 40 | 48 | 56
-        ? TypeT<number>
-        : TypeT<bigint>;
-
 //computed int
-export function UINT<T extends number>(bits: T, be?:boolean): TypeNumber<T> {
+export function UINT<T extends number>(bits: T, be?: boolean): TypeNumber<T> {
 	if (bits & 7)
 		throw new Error('bits must be multiple of 8');
 
@@ -357,7 +360,7 @@ export function UINT<T extends number>(bits: T, be?:boolean): TypeNumber<T> {
 		}), be) as TypeNumber<T>;
 }
 
-export function INT<T extends number>(bits: T, be?:boolean): TypeNumber<T> {
+export function INT<T extends number>(bits: T, be?: boolean): TypeNumber<T> {
 	if (bits & 7)
 		throw new Error('bits must be multiple of 8');
 
@@ -375,11 +378,11 @@ export function INT<T extends number>(bits: T, be?:boolean): TypeNumber<T> {
 }
 
 //float
-function _Float32(be?:boolean) { return {
+function _Float32(be?: boolean) { return {
 	get(s: _stream) 			{ return s.dataview(4).getFloat32(0, !be); },
 	put(s: _stream, v: number)	{ s.dataview(4).setFloat32(0, v, !be); }
 };}
-function _Float64(be?:boolean) { return {
+function _Float64(be?: boolean) { return {
 	get(s: _stream) 			{ return s.dataview(8).getFloat64(0, !be); },
 	put(s: _stream, v: number)	{ s.dataview(8).setFloat64(0, v, !be); }
 };}
@@ -412,7 +415,7 @@ export const ULEB128 = {
 		s.skip(i);
 		return tn;
 	},
-	put(s: _stream, v: number|bigint) {
+	put(s: _stream, v: number | bigint) {
 		const n = utils.highestSetIndex(v) / 7 + 1;
 		const buffer = new Uint8Array(n);
 		let i = 0;
@@ -481,14 +484,10 @@ export function RemainingStringType(encoding: utils.TextEncoding = 'utf8', zeroT
 //	array types
 //-----------------------------------------------------------------------------
 
-export function readn<T extends TypeReader>(s: _stream, type: TypeReader, n:number, obj?: any) : ReadType<T>[] {
+export function readn<T extends TypeReader>(s: _stream, type: TypeReader, n: number, obj?: any) : ReadType<T>[] {
 	const result: ReadType<T>[] = [];
-	//try {
-		for (let i = 0; i < n; i++)
-			result.push(read(s, type, obj));
-	//} catch (e) {
-	//	console.log(`binary.readn wanted ${n} items, but failed after ${result.length}`)
-	//}
+	for (let i = 0; i < n; i++)
+		result.push(read(s, type, obj));
 	return result;
 }
 
@@ -545,39 +544,26 @@ export function objectWithNames<T extends Type>(type: T, func:(v: any, i: number
 //-----------------------------------------------------------------------------
 //	other types
 //-----------------------------------------------------------------------------
-type Constructor<T, D, O=void>		= new (arg: T, opt: O) => D;
-type Factory<T, D, O=void>			= (arg: T, opt: O) => D;
-type ClassOrFactory<T, D, O=void>	= Constructor<T, D, O> | Factory<T, D, O>;
-
-function isConstructor<T, D, O>(maker: ClassOrFactory<T,D,O>): maker is Constructor<T,D,O> {
-	return maker.prototype?.constructor.name;
-//	return typeof maker === 'function' && maker.prototype && !!maker.prototype.constructor;
-}
-
-function make<T, D, O>(maker: ClassOrFactory<T,D,O>, arg: T, opt?: O) {
-	return isConstructor(maker) ? new maker(arg, opt as O) : maker(arg, opt as O);
-}
 
 function clone<T extends object>(obj: T) : T {
 	return Object.assign(Object.create(Object.getPrototypeOf(obj)), obj);
 }
 
-
 export function Struct<T extends Type>(spec: T) {
 	return {
-		get:(s: _stream, obj?: any) => read(s, spec, obj),
-		put:(s: _stream, v: any)	=> { write(s, spec, v); }
+		get:(s: _stream, obj?: any) 	=> read(s, spec, obj),
+		put:(s: _stream, v: any)		=> write(s, spec, v)
 	};
 }
 
 export const Remainder = {
-	get:(s: _stream) => s.remainder(),
-	put:(s: _stream, v: Uint8Array)	=> s.write_buffer(v)
+	get:(s: _stream)					=> s.remainder(),
+	put:(s: _stream, v: Uint8Array)		=> s.write_buffer(v)
 };
 
 export function Buffer(len: TypeX<number>) {
 	return {
-		get:(s: _stream, obj?: any) => s.read_buffer(readx(s, len, obj)),
+		get:(s: _stream, obj?: any)		=> s.read_buffer(readx(s, len, obj)),
 		put:(s: _stream, v: Uint8Array)	=> { writex(s, len, v.length); s.write_buffer(v); }
 	};
 }
@@ -604,7 +590,7 @@ export function Discard(type: Type) {
 
 export function DontRead<T>() {
 	return {
-		get(_s: _stream) : T|undefined	{ return undefined; },
+		get(_s: _stream) : T | undefined	{ return undefined; },
 		put(_s: _stream, _v: T)			{}
 	};
 }
@@ -612,9 +598,9 @@ export function DontRead<T>() {
 export function SizeType<T extends Type>(len: TypeX<number>, targettype: T) {
 	return {
 		get(s: _stream, obj: any) {
-			const size = readx(s, len, obj);
-			const s2 = clone(s) as stream;
-			s2.end = s2.offset + size;
+			const size	= readx(s, len, obj);
+			const s2	= clone(s) as stream;
+			s2.end		= s2.offset + size;
 			return read(s2, targettype, obj);
 		},
 		put(_s: _stream) {}
@@ -624,9 +610,9 @@ export function SizeType<T extends Type>(len: TypeX<number>, targettype: T) {
 export function OffsetType<T extends Type>(offsettype: TypeX<number>, targettype: T) {
 	return {
 		get(s: _stream, obj: any) {
-			const offset = readx(s, offsettype, obj);
-			const s2 = clone(s) as stream;
-			s2.offset = s2.offset0 += offset;
+			const offset	= readx(s, offsettype, obj);
+			const s2		= clone(s) as stream;
+			s2.offset		= s2.offset0 += offset;
 			return read(s2, targettype, obj);
 		},
 		put(_s: _stream) {}
@@ -638,19 +624,12 @@ export function MaybeOffsetType<T extends Type>(offsettype: TypeX<number>, targe
 		get(s: _stream, obj: any) {
 			const offset = readx(s, offsettype, obj);
 			if (offset) {
-				const s2 = clone(s) as stream;
-				s2.offset = s2.offset0 += offset;
+				const s2	= clone(s) as stream;
+				s2.offset	= s2.offset0 += offset;
 				return read(s2, targettype, obj);
 			}
 		},
 		put(_s: _stream) {}
-	};
-}
-
-export function as<T extends Type, D>(type: T, maker: ClassOrFactory<ReadType<T>, D, any>) {
-	return {
-		get(s: _stream, obj: any)	{ return make(maker, read(s, type), obj); },
-		put(s: _stream, v: D)		{ write(s, type, v); }
 	};
 }
 
@@ -675,7 +654,7 @@ export function FuncType<T extends Type>(func: (obj?: any)=>T) {
 	};
 }
 
-export function If<T extends Type, F extends Type|undefined>(test: TypeX<boolean|number>, true_type: T, false_type?: F) {
+export function If<T extends Type, F extends Type | undefined>(test: TypeX<boolean | number>, true_type: T, false_type?: F) {
 	type R = ReadType<T | F>;
 	return {
 		get(s: _stream, obj: any) 	{
@@ -690,7 +669,7 @@ export function If<T extends Type, F extends Type|undefined>(test: TypeX<boolean
 	};
 }
 
-export function Optional<T extends Type>(test: TypeX<boolean|number>, type: T) {
+export function Optional<T extends Type>(test: TypeX<boolean | number>, type: T) {
 	type R = ReadType<T>;
 	return {
 		get(s: _stream, obj: any) 	{ return readx(s, test, obj) ? read(s, type) : undefined; },
@@ -698,7 +677,7 @@ export function Optional<T extends Type>(test: TypeX<boolean|number>, type: T) {
 	};
 }
 
-export function Switch<T extends Record<string|number, Type>>(test: TypeX<string|number>, switches: T) {
+export function Switch<T extends Record<string | number, Type>>(test: TypeX<string | number>, switches: T) {
 	return {
 		get(s: _stream, obj: any)	{ const t = switches[readx(s, test, obj)]; return (t && read(s, t, obj)) as ReadType<T[keyof T]>; },
 		put(_s: _stream, _v: T)		{}// writex(s, test, )}// write(s, switches[test(obj)], v); }
@@ -706,17 +685,45 @@ export function Switch<T extends Record<string|number, Type>>(test: TypeX<string
 }
 
 //-----------------------------------------------------------------------------
-//	TYPED  types
+//	AS - read as one type, return another
 //-----------------------------------------------------------------------------
 
-export class hex<T extends number|bigint> {
+type Constructor<T, D, O=void>		= new (arg: T, opt: O) => D;
+type Factory<T, D, O=void>			= (arg: T, opt: O) => D;
+type ClassOrFactory<T, D, O=void>	= Constructor<T, D, O> | Factory<T, D, O>;
+
+function isConstructor<T, D, O>(maker: ClassOrFactory<T,D,O>): maker is Constructor<T,D,O> {
+	return maker.prototype?.constructor.name;
+}
+
+function make<T, D, O>(maker: ClassOrFactory<T,D,O>, arg: T, opt?: O) {
+	return isConstructor(maker) ? new maker(arg, opt as O) : maker(arg, opt as O);
+}
+
+export function as<T extends Type, D>(type: T, maker: ClassOrFactory<ReadType<T>, D, any>) {
+	return {
+		get(s: _stream, obj: any)	{ return make(maker, read(s, type), obj); },
+		put(s: _stream, v: D)		{ write(s, type, v); }
+	};
+}
+
+export class hex<T extends number | bigint> {
 	constructor(public value: T) {}
 	valueOf()	{ return this.value; }
 	toString()	{ return '0x' + this.value.toString(16); }
 };
 
-export function asHex<T extends TypeT<number|bigint>>(type: T) {
+export function asHex<T extends TypeT<number | bigint>>(type: T) {
 	return as(type, hex);
+}
+
+export function asInt<T extends TypeT<string>>(type: T, radix = 10) {
+	return as(type, x => parseInt(x.trim(), radix));
+}
+
+export function asFixed<T extends TypeT<number>>(type: T, fracbits: number) {
+	const scale = 1 / (1 << fracbits);
+	return as(type, x => x * scale);
 }
 
 // enum types
@@ -731,7 +738,7 @@ export function EnumV<T extends EnumType>(_: T) {
 }
 
 export function Enum(e: EnumType) {
-	const e1 = (Object.entries(e).filter(([_, v]) => typeof v === 'number') as [string, number][]).sort(([, v1], [, v2]) => v2 - v1);
+	const e1 = (Object.entries(e).filter(([, v]) => typeof v === 'number') as [string, number][]).sort(([, v1], [, v2]) => v2 - v1);
 	const e2 = Object.fromEntries(e1.map(([k, v]) => [v, k]));
 
 	function split_enum(x: number) {
@@ -758,39 +765,39 @@ export function Enum(e: EnumType) {
 		return results.join('+');
 	}
 	
-	return (x: number|bigint) => 
-		e2[Number(x)] ?? split_enum(Number(x));
+	return (x: number | bigint) => e2[Number(x)] ?? split_enum(Number(x));
 }
 
 export function Flags(e: EnumType, noFalse: boolean) {
-	const e1 = Object.entries(e).filter(([_, v]) => typeof v === 'number') as [string, number][];
-	return (x: number|bigint) => typeof x === 'bigint'
+	const e1 = Object.entries(e).filter(([, v]) => typeof v === 'number') as [string, number][];
+
+	return (x: number | bigint) => typeof x === 'bigint'
 	?	e1.reduce((obj, [k, v]) => {
 		const y = x & BigInt(v);
 		if (y || !noFalse)
 			obj[k] = !utils.isPow2(v) ? y / BigInt(utils.lowestSet(v)) : !!y;
 		return obj;
-	}, {} as Record<string, bigint|boolean>)
+	}, {} as Record<string, bigint | boolean>)
 	:	e1.reduce((obj, [k, v]) => {
 		const y = x & v;
 		if (y || !noFalse)
 			obj[k] = !utils.isPow2(v) ? y / utils.lowestSet(v) : !!y;
 		return obj;
-	}, {} as Record<string, number|boolean>);
+	}, {} as Record<string, number | boolean>);
 
 }
 
 export type BitField<D> = [number, ClassOrFactory<number, D>];
 
-export function BitFields<T extends Record<string, number|BitField<any>>>(bitfields: T) {
-	return <V extends number|bigint>(x: V): {[K in keyof T]: T[K] extends BitField<infer D> ? D : V;} => {
+export function BitFields<T extends Record<string, number | BitField<any>>>(bitfields: T) {
+	return <V extends number | bigint>(x: V): {[K in keyof T]: T[K] extends BitField<infer D> ? D : V;} => {
 		if (typeof x === 'bigint') {
 			let y: bigint = x;
 			const obj = {} as Record<string, bigint>;
 			for (const i in bitfields) {
-				const bf = bitfields[i];
-				const bits = typeof bf === 'number' ? bf : bf[0];
-				const v = y & ((1n << BigInt(bits)) - 1n);
+				const bf	= bitfields[i];
+				const bits	= typeof bf === 'number' ? bf : bf[0];
+				const v		= y & ((1n << BigInt(bits)) - 1n);
 				y >>= BigInt(bits);
 				obj[i] = typeof bf === 'number' ? v : make(bf[1], Number(v));
 			}
@@ -799,9 +806,9 @@ export function BitFields<T extends Record<string, number|BitField<any>>>(bitfie
 			const obj = {} as Record<string, number>;
 			let y: number = x;
 			for (const i in bitfields) {
-				const bf = bitfields[i];
-				const bits = typeof bf === 'number' ? bf : bf[0];
-				const v = y & ((1 << bits) - 1);
+				const bf	= bitfields[i];
+				const bits	= typeof bf === 'number' ? bf : bf[0];
+				const v		= y & ((1 << bits) - 1);
 				y >>= bits;
 				obj[i] = typeof bf === 'number' ? v : make(bf[1], v);
 			}
@@ -811,30 +818,13 @@ export function BitFields<T extends Record<string, number|BitField<any>>>(bitfie
 }
 
 //shortcuts
-export function asEnum<T extends TypeT<number|bigint>, E extends EnumType>(type: T, e: E) {
+export function asEnum<T extends TypeT<number | bigint>, E extends EnumType>(type: T, e: E) {
 	return as(type, Enum(e));
 }
-export function asFlags<T extends TypeT<number|bigint>, E extends EnumType>(type: T, e: E, noFalse = true) {
+export function asFlags<T extends TypeT<number | bigint>, E extends EnumType>(type: T, e: E, noFalse = true) {
 	return as(type, Flags(e, noFalse));
 }
-export function asInt<T extends TypeT<string>>(type: T, radix = 10) {
-	return as(type, x => parseInt(x.trim(), radix));
-}
-export function asFixed<T extends TypeT<number>>(type: T, fracbits: number) {
-	const scale = 1 / (1 << fracbits);
-	return as(type, x => x * scale);
-}
 
-//-----------------------------------------------------------------------------
-//	stream_endian:
-//	endianness stored in stream
-//-----------------------------------------------------------------------------
-
-export class stream_endian extends stream {
-	constructor(data: Uint8Array, public be: boolean) {
-		super(data);
-	}
-}
 //-----------------------------------------------------------------------------
 //	memory utilities
 //-----------------------------------------------------------------------------
@@ -853,7 +843,7 @@ export const enum MEM {
 }
 export class MappedMemory {
 	constructor(public data: Uint8Array, public address: number, public flags: number) {}
-	resolveAddress(base: number)		{ return this.address; }
+	resolveAddress(_base: number)		{ return this.address; }
 	slice(begin: number, end?: number)	{ return new MappedMemory(this.data.subarray(begin, end), this.address + begin, this.flags); }
 	at(begin: number, length?: number)	{ return this.slice(begin - this.address, length && (begin - this.address + length)); }
 }

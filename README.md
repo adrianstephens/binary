@@ -1,42 +1,35 @@
-# my-binary-package/my-binary-package/README.md
+# @isopodlabs/binary
 
-# My Binary Package
-
-This package provides a set of utilities for reading and writing binary data in TypeScript. It includes various interfaces, types, and functions to facilitate binary data manipulation.
-
-## Installation
-
-To install the package, use npm:
-
-```
-npm install my-binary-package
-```
+This package provides a set of utilities for reading and writing binary data in TypeScript.
 
 ## Usage
 
 Here is a basic example of how to use the package:
 
 ```typescript
-import { stream, ReadStruct, WriteStruct } from 'my-binary-package';
+import * as binary from '@isopodlabs/binary';
+
+// Define an object to specify how to read a structure
+const StructSpec = {
+    // Define your structure here
+};
 
 // Create a new stream from a Uint8Array
 const data = new Uint8Array([/* binary data */]);
-const binaryStream = new stream(data);
-
-// Define a structure to read from the stream
-const MyStruct = ReadStruct({
-    // Define your structure here
-});
+const stream = new binary.stream(data);
 
 // Read data from the stream
-const myData = new MyStruct(binaryStream);
+const myData = binary.read(stream, StructSpec);
 
-// Write data back to the stream
-const writeStream = new stream(new Uint8Array(1024));
-const myWriteStruct = WriteStruct({
-    // Define your structure here
-});
-myWriteStruct.put(writeStream, myData);
+// Create a new stream for output
+const stream2 = new binary.growingStream;
+
+// Write data back to a stream
+binary.write(stream2, myData);
+
+// Extract written data as a Uint8Array
+const data2 = stream2.terminate();
+
 ```
 
 ## Key Features
@@ -50,10 +43,6 @@ myWriteStruct.put(writeStream, myData);
   - `ReadStruct`: Create a reader for a specific structure.
   - `WriteStruct`: Create a writer for a specific structure.
   - `read`, `write`: Functions for reading and writing binary data.
-
-## Contributing
-
-Contributions are welcome! Please open an issue or submit a pull request for any enhancements or bug fixes.
 
 ## License
 
