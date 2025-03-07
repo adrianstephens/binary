@@ -28,7 +28,7 @@ export type ReadType<T> = T extends TypeReaderT<infer R> ? R :
 	{[K in keyof T]: T[K] extends TypeReaderT<infer R> ? (R extends MergeType<infer _U> ? never : R) : never}
 &	{[K in keyof T as T[K] extends TypeReaderT<infer _R extends MergeType<infer U>> ? keyof U : never]: T[K] extends TypeReaderT<infer _R extends MergeType<infer U>> ? U[keyof U] : never};
 
-export function ReadStruct<T extends TypeReader>(spec: T) {
+export function ReadClass<T extends TypeReader>(spec: T) {
 	return class ReadStruct {
 		static get(s: _stream) {
 			return new this(s);
@@ -41,7 +41,7 @@ export function ReadStruct<T extends TypeReader>(spec: T) {
 	};
 }
 
-export function ReadWriteStruct<T extends Type>(spec: T) {
+export function Class<T extends Type>(spec: T) {
 	return class ReadWriteStruct {
 		static get(s: _stream) {
 			return new this(s);
@@ -483,7 +483,7 @@ export function RemainingStringType(encoding: utils.TextEncoding = 'utf8', zeroT
 //	array types
 //-----------------------------------------------------------------------------
 
-export function readn<T extends TypeReader>(s: _stream, type: TypeReader, n: number, obj?: any) : ReadType<T>[] {
+export function readn<T extends TypeReader>(s: _stream, type: T, n: number, obj?: any) : ReadType<T>[] {
 	const result: ReadType<T>[] = [];
 	for (let i = 0; i < n; i++)
 		result.push(read(s, type, obj));
@@ -520,20 +520,20 @@ export function RemainingArrayType<T extends Type>(type: T): TypeT<ReadType<T>[]
 }
 
 export function withNames<T>(array: T[], func:(v: T, i: number)=>string) : [string, T][] {
-	return array.map((v, i) => [func(v, i) ?? `#${i}`, v]);
+	return array.map((v, i) => [func(v, i) ?? `#${i}`, v] as [string, T]);
 }
 
 export const field = (field: string) 	=> (v: any) => v[field];
 export const names = (names: string[])	=> (v: any, i: number) => names[i];
 
-export function arrayWithNames<T extends Type>(type: T, func:(v: any, i: number)=>string): TypeT<[string, ReadType<T>][]> {
+export function arrayWithNames<T extends Type>(type: T, func:(v: any, i: number)=>string): TypeT<[string, ReadType<T> extends Array<infer E> ? E : never][]> {
 	return {
 		get: (s: _stream) => withNames(read(s, type), func),
 		put: (s: _stream, v: [string, any][]) => write(s, type, v.map(([, v]) => v))
 	};
 }
 
-export function objectWithNames<T extends Type>(type: T, func:(v: any, i: number)=>string): TypeT<Record<string, ReadType<T>>> {
+export function objectWithNames<T extends Type>(type: T, func:(v: any, i: number)=>string): TypeT<Record<string, ReadType<T> extends Array<infer E> ? E : never>> {
 	return {
 		get: (s: _stream) => Object.fromEntries(withNames(read(s, type), func)),
 		put: (s: _stream, v: Record<string, any>) => write(s, type, Object.values(v))
@@ -700,7 +700,7 @@ function make<T, D, O>(maker: ClassOrFactory<T,D,O>, arg: T, opt?: O) {
 	return isConstructor(maker) ? new maker(arg, opt as O) : maker(arg, opt as O);
 }
 
-export function as<T extends Type, D>(type: T, maker: ClassOrFactory<ReadType<T>, D, any>): TypeT<D> {
+export function as<T extends Type, D>(type: T, maker: ClassOrFactory<ReadType<T>, D, any>) : TypeT<D> {
 	return {
 		get(s: _stream, obj: any)	{ return make(maker, read(s, type), obj); },
 		put(s: _stream, v: D)		{ write(s, type, v); }
