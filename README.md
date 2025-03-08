@@ -145,10 +145,10 @@ These are predefined for convenience:
 
 `ReadType<T>`: obtains the type that will be returned by a particular reader.
 
-`ReadStruct`: utility to synthesize a class from a reader spec, allowing inheritence:
+`Class`: utility to synthesize a class from a reader spec, allowing inheritence:
 
 ```typescript
-class MyClass extends binary.ReadStruct({
+class MyClass extends binary.Class({
     x:  binary.UINT16_LE,
     y:  binary.StringType(binary.UINT8, 'utf8'),
 }) {
