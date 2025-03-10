@@ -22,14 +22,22 @@ export type TypeReader	= TypeReaderT<any> | { [key: string]: TypeReader; }
 export type TypeWriter	= TypeWriterT<any> | { [key: string]: TypeWriter; }
 export type Type 		= TypeT<any> | { [key: string]: Type; }
 
-interface MergeType<T> { merge: T; }
+export interface MergeType<T> { merge: T; }
 
-export type ReadType<T> = T extends TypeReaderT<infer R> ? R : 
-	{[K in keyof T]: T[K] extends TypeReaderT<infer R> ? (R extends MergeType<infer _U> ? never : R) : never}
-&	{[K in keyof T as T[K] extends TypeReaderT<infer _R extends MergeType<infer U>> ? keyof U : never]: T[K] extends TypeReaderT<infer _R extends MergeType<infer U>> ? U[keyof U] : never};
+//export type ReadType<T> = T extends TypeReaderT<infer R> ? R : 
+//	{[K in keyof T]: T[K] extends TypeReaderT<infer R> ? (R extends MergeType<infer _U> ? never : R) : never}
+//&	{[K in keyof T as T[K] extends TypeReaderT<infer _R extends MergeType<infer U>> ? keyof U : never]: T[K] extends TypeReaderT<infer _R extends MergeType<infer U>> ? U[keyof U] : never};
+
+interface TypeReader0<T> { get: (...args: any) => T }
+
+export type ReadType<T> =
+	T extends {new (s: infer _S extends _stream): infer R} ? R : T extends TypeReader0<infer R> ? R
+	: T extends { [key: string]: any } ? { [K in keyof T]:  T[K] extends {new (s: infer _S extends _stream): infer R} ? R : T[K] extends { get: (...args: any) => infer R } ? (R extends MergeType<infer _U> ? never : R) : never}
+	: never
+&	{[K in keyof T as T[K] extends TypeReader0<infer _R extends MergeType<infer U>> ? keyof U : never]: T[K] extends TypeReader0<infer _R extends MergeType<infer U>> ? U[keyof U] : never};
 
 export function ReadClass<T extends TypeReader>(spec: T) {
-	return class ReadStruct {
+	return class ReadClass {
 		static get(s: _stream) {
 			return new this(s);
 		}
@@ -37,26 +45,26 @@ export function ReadClass<T extends TypeReader>(spec: T) {
 			return Object.assign(this, read(s, spec));
 		}
 	} as (new(s: _stream) => ReadType<T>) & {
-		get:(s: _stream) => ReadType<T>
+		get:<X extends abstract new (...args: any) => any>(this: X, s: _stream) => InstanceType<X>,
 	};
 }
 
 export function Class<T extends Type>(spec: T) {
-	return class ReadWriteStruct {
+	return class Class {
 		static get(s: _stream) {
 			return new this(s);
 		}
-		static put(s: _stream, v: ReadWriteStruct) {
+		static put(s: _stream, v: Class) {
 			write(s, spec, v);
 		}
 		constructor(s: _stream) {
-			Object.assign(this, read(s, spec));
+			return Object.assign(this, read(s, spec));
 		}
 		write(s: _stream) 	{
 			write(s, spec, this);
 		}
 	} as (new(s: _stream) => ReadType<T> & { write(w: _stream): void}) & {
-		get:(s: _stream) => ReadType<T>,
+		get:<X extends abstract new (...args: any) => any>(this: X, s: _stream) => InstanceType<X>,
 		put:(s: _stream, v: any) => void
 	};
 }
