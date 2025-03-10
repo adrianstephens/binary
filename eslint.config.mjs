@@ -11,6 +11,8 @@ export default tslint.config(
             "semi": ["error", "always"],
             //"@typescript-eslint/no-misleading-character-class": "off",
             //"@typescript-eslint/no-this-alias": "off",
+            "@typescript-eslint/prefer-function-type": "off",
+            "@typescript-eslint/array-type": "off",
             "@typescript-eslint/no-unused-vars":  [
                 "warn", {
                     argsIgnorePattern: "^(_+$|_[^_])",
