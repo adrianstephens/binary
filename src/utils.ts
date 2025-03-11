@@ -312,11 +312,11 @@ export function encodeTextInto(str: string, into: Uint8Array, encoding: TextEnco
 
 export function decodeText(buf: Uint8Array, encoding: TextEncoding = 'utf8'): string {
 	if (encoding === 'utf16be') {
-		encoding = 'utf16le';
 		buf = dupBuffer8(buf);
 		pairSwap(buf);
+		encoding = 'utf16le';
 	}
-	return new TextDecoder(encoding).decode(buf);
+	return Buffer.from(buf).toString(encoding);
 }
 
 export function decodeTextTo0(buf: Uint8Array | undefined, encoding: TextEncoding = 'utf8'): string {
