@@ -80,11 +80,12 @@ export function isType(type: any): type is TypeT<any> {
 	return isReader(type) && isWriter(type);
 }
 
-export function read<T extends TypeReader>(s: _stream, spec: T) : ReadType<T> {
+export function read<T extends TypeReader>(s: _stream, spec: T, obj?: any) : ReadType<T> {
 	if (isReader(spec))
 		return spec.get(s);
 
-	const obj = {obj: s.obj} as any;
+	if (!obj)
+		obj = {obj: s.obj} as any;
 	s.obj	= obj;
 	Object.entries(spec).forEach(([k, t]) => obj[k] = read(s, t));
 	s.obj	= obj.obj;
