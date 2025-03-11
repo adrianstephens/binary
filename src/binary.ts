@@ -710,7 +710,7 @@ function make<T, D, O>(maker: ClassOrFactory<T,D,O>, arg: T, opt?: O) {
 
 export function as<T extends Type, D>(type: T, maker: ClassOrFactory<ReadType<T>, D, any>) : TypeT<D> {
 	return {
-		get(s: _stream, obj: any)	{ return make(maker, read(s, type), obj); },
+		get(s: _stream, obj: any)	{ return make(maker, read(s, type, obj), obj); },
 		put(s: _stream, v: D)		{ write(s, type, v); }
 	};
 }
