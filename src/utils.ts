@@ -5,14 +5,15 @@
 export function isPow2(n: number) {
 	return (n & (n - 1)) === 0;
 }
-export function lowestSet(n: number): number;
-export function lowestSet(n: bigint): bigint;
-export function lowestSet(n: number | bigint): number | bigint {
-	return typeof n === 'bigint' ? n & -n : n & -n;
-}
-
 export function contiguousBits(n: number) {
 	return isPow2(n + lowestSet(n));
+}
+
+export function lowestSet(n: number): number;
+export function lowestSet(n: bigint): bigint;
+export function lowestSet(n: number | bigint): number | bigint;
+	export function lowestSet(n: number | bigint): number | bigint {
+	return typeof n === 'bigint' ? n & -n : n & -n;
 }
 
 export function highestSetIndex32(n: number) {
@@ -36,6 +37,9 @@ export function lowestSetIndex(n: number | bigint): number {
 	return i ? lowestSetIndex32(i) : 32 + lowestSetIndex(n >> 32n);
 }
 
+export function clearLowest(n: number): number;
+export function clearLowest(n: bigint): bigint;
+export function clearLowest(n: number | bigint): number | bigint;
 export function clearLowest(n: number | bigint)	{
 	return typeof n === 'bigint'
 		? n & (n - 1n)
