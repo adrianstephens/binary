@@ -3,6 +3,7 @@ export * as utils from './utils';
 
 export interface _stream {
 	be?: boolean;
+	obj?: any;
 	remaining(): number;
 	remainder(): any;
 	tell(): number;
@@ -14,7 +15,7 @@ export interface _stream {
 	write_buffer(value: Uint8Array): void;
 }
 
-export interface TypeReaderT<T> { get(s: _stream, obj?: any): T }
+export interface TypeReaderT<T> { get(s: _stream): T }
 interface TypeWriterT<T> { put(s: _stream, v: T): void }
 export type TypeT<T>	= TypeReaderT<T> & TypeWriterT<T>;
 
@@ -79,19 +80,25 @@ export function isType(type: any): type is TypeT<any> {
 	return isReader(type) && isWriter(type);
 }
 
-export function read<T extends TypeReader>(s: _stream, spec: T, obj?: any) : ReadType<T> {
-	return isReader(spec)
-		? spec.get(s, obj)
-		: Object.entries(spec).reduce((obj, [k, t]) => (obj[k] = read(s, t, obj), obj), {obj} as any);
+export function read<T extends TypeReader>(s: _stream, spec: T) : ReadType<T> {
+	if (isReader(spec))
+		return spec.get(s);
+
+	const obj = {obj: s.obj} as any;
+	s.obj	= obj;
+	Object.entries(spec).forEach(([k, t]) => obj[k] = read(s, t));
+	s.obj	= obj.obj;
+	return obj;
+}
+
+function read_merge<T extends TypeReader>(s: _stream, specs: T) {
+	Object.entries(specs).forEach(([k, v]) => s.obj[k] = isReader(v) ? v.get(s) : read(s, v as TypeReader));
 }
 
 export function read_more<T extends TypeReader, O extends Record<string, any>>(s: _stream, specs: T, obj: O) : ReadType<T> & O {
-	return Object.entries(specs).reduce((obj, spec) => {
-		obj[spec[0]] = isReader(spec[1])
-			? spec[1].get(s, obj)
-			: read_more(s, spec[1] as TypeReader, obj[spec[0]]);
-		return obj;
-	}, obj as any);
+	s.obj = obj;
+	Object.entries(specs).forEach(([k, v]) => s.obj[k] = isReader(v) ? v.get(s) : read_more(s, v as TypeReader, s.obj[k]));
+	return s.obj;
 }
 
 export function write(s: _stream, type: TypeWriter, value: any) : void {
@@ -101,11 +108,11 @@ export function write(s: _stream, type: TypeWriter, value: any) : void {
 		Object.entries(type).map(([k, t]) => write(s, t, value[k]));
 }
 
-export type TypeX<T>	= TypeT<T> | ((obj: any)=>T) | T;
+export type TypeX<T>	= TypeT<T> | ((s: _stream)=>T) | T;
 
-function readx<T extends object | number | string | boolean>(s: _stream, type: TypeX<T>, obj: any): T {
-	return typeof type === 'function' ? type(obj)
-		:	isReader(type) ?	type.get(s, obj)
+function readx<T extends object | number | string | boolean>(s: _stream, type: TypeX<T>): T {
+	return typeof type === 'function' ? type(s)
+		:	isReader(type) ?	type.get(s)
 		:	type;
 }
 function writex<T extends object | number | string>(s: _stream, type: TypeX<T>, value: T) {
@@ -449,8 +456,8 @@ export const ULEB128: TypeT<number|bigint> = {
 export function StringType(len: TypeX<number>, encoding: utils.TextEncoding = 'utf8', zeroTerminated = false, lenScale?: number): TypeT<string> {
 	const lenScale2 = lenScale ?? (encoding == 'utf8' ? 1 : 2);
 	return {
-		get(s: _stream, obj?: any) 	{
-			const len2	= readx(s, len, obj);
+		get(s: _stream) 	{
+			const len2	= readx(s, len);
 			const v 	= utils.decodeText(s.read_buffer(len2 * lenScale2), encoding);
 			return zeroTerminated ? v.slice(0, -1) : v;
 		},
@@ -491,10 +498,10 @@ export function RemainingStringType(encoding: utils.TextEncoding = 'utf8', zeroT
 //	array types
 //-----------------------------------------------------------------------------
 
-export function readn<T extends TypeReader>(s: _stream, type: T, n: number, obj?: any) : ReadType<T>[] {
+export function readn<T extends TypeReader>(s: _stream, type: T, n: number) : ReadType<T>[] {
 	const result: ReadType<T>[] = [];
 	for (let i = 0; i < n; i++)
-		result.push(read(s, type, obj));
+		result.push(read(s, type));
 	return result;
 }
 
@@ -505,18 +512,18 @@ export function writen(s: _stream, type: TypeWriter, v: any) {
 
 export function ArrayType<T extends Type>(len: TypeX<number>, type: T): TypeT<ReadType<T>[]> {
 	return {
-		get: (s: _stream, obj?: any): ReadType<T>[] => readn(s, type, readx(s, len, obj), obj),
+		get: (s: _stream): ReadType<T>[] => readn(s, type, readx(s, len)),
 		put: (s: _stream, v: T[]) => { writex(s, len, v.length); writen(s, type, v); }
 	};
 }
 
 export function RemainingArrayType<T extends Type>(type: T): TypeT<ReadType<T>[]> {
 	return {
-		get: (s: _stream, obj?: any) => {
+		get: (s: _stream) => {
 			const result: ReadType<T>[] = [];
 			try {
 				let value;
-				while (s.remaining() && (value = read(s, type, obj)) !== undefined)
+				while (s.remaining() && (value = read(s, type)) !== undefined)
 					result.push(value);
 			} catch (_) {
 				//meh
@@ -558,7 +565,7 @@ function clone<T extends object>(obj: T) : T {
 
 export function Struct<T extends Type>(spec: T): TypeT<ReadType<T>> {
 	return {
-		get:(s: _stream, obj?: any) 	=> read(s, spec, obj),
+		get:(s: _stream) 				=> read(s, spec),
 		put:(s: _stream, v: any)		=> write(s, spec, v)
 	};
 }
@@ -570,7 +577,7 @@ export const Remainder: TypeT<Uint8Array> = {
 
 export function Buffer(len: TypeX<number>): TypeT<Uint8Array> {
 	return {
-		get:(s: _stream, obj?: any)		=> s.read_buffer(readx(s, len, obj)),
+		get:(s: _stream)				=> s.read_buffer(readx(s, len)),
 		put:(s: _stream, v: Uint8Array)	=> { writex(s, len, v.length); s.write_buffer(v); }
 	};
 }
@@ -605,11 +612,11 @@ export function DontRead<T>(): TypeT<T|undefined> {
 
 export function SizeType<T extends Type>(len: TypeX<number>, type: T): TypeT<ReadType<T>> {
 	return {
-		get(s: _stream, obj: any) {
-			const size	= readx(s, len, obj);
+		get(s: _stream) {
+			const size	= readx(s, len);
 			const s2	= clone(s) as stream;
 			s2.end		= s2.offset + size;
-			return read(s2, type, obj);
+			return read(s2, type);
 		},
 		put(_s: _stream) {}
 	};
@@ -617,11 +624,11 @@ export function SizeType<T extends Type>(len: TypeX<number>, type: T): TypeT<Rea
 
 export function OffsetType<T extends Type>(offset: TypeX<number>, type: T): TypeT<ReadType<T>> {
 	return {
-		get(s: _stream, obj: any) {
-			const off	= readx(s, offset, obj);
+		get(s: _stream) {
+			const off	= readx(s, offset);
 			const s2	= clone(s) as stream;
 			s2.offset	= s2.offset0 += off;
-			return read(s2, type, obj);
+			return read(s2, type);
 		},
 		put(_s: _stream) {}
 	};
@@ -629,12 +636,12 @@ export function OffsetType<T extends Type>(offset: TypeX<number>, type: T): Type
 
 export function MaybeOffsetType<T extends Type>(offset: TypeX<number>, type: T): TypeT<ReadType<T> | undefined> {
 	return {
-		get(s: _stream, obj: any) {
-			const off = readx(s, offset, obj);
+		get(s: _stream) {
+			const off = readx(s, offset);
 			if (off) {
 				const s2	= clone(s) as stream;
 				s2.offset	= s2.offset0 += off;
-				return read(s2, type, obj);
+				return read(s2, type);
 			}
 		},
 		put(_s: _stream) {}
@@ -648,16 +655,16 @@ export function Const<T>(t: T): TypeT<T> {
 	};
 }
 
-export function Func<T>(func: (obj?: any)=>T): TypeT<T> {
+export function Func<T>(func: (s: _stream)=>T): TypeT<T> {
 	return {
-		get(s: _stream, obj: any)	{ return func(obj); },
+		get(s: _stream)	{ return func(s); },
 		put(_s: _stream, _v: any)	{}
 	};
 }
 
-export function FuncType<T extends Type>(func: (obj?: any)=>T): TypeT<ReadType<T>> {
+export function FuncType<T extends Type>(func: (s: _stream)=>T): TypeT<ReadType<T>> {
 	return {
-		get(s: _stream, obj: any)	{ return read(s, func(obj), obj); },
+		get(s: _stream)	{ return read(s, func(s)); },
 		put(_s: _stream, _v: any)	{}
 	};
 }
@@ -665,12 +672,12 @@ export function FuncType<T extends Type>(func: (obj?: any)=>T): TypeT<ReadType<T
 export function If<T extends Type, F extends Type | undefined>(test: TypeX<boolean | number>, true_type: T, false_type?: F) {
 	type R = ReadType<T | F>;
 	return {
-		get(s: _stream, obj: any) 	{
-			const x = readx(s, test, obj);
+		get(s: _stream) 	{
+			const x = readx(s, test);
 			if (false_type)
-				read_more(s, x ? true_type : false_type, obj);
+				read_merge(s, x ? true_type : false_type);
 			else if (x)
-				read_more(s, true_type, obj);
+				read_merge(s, true_type);
 			return {} as MergeType<R>;
 		},
 		put(_s: _stream, _v?: R)	{}
@@ -680,14 +687,14 @@ export function If<T extends Type, F extends Type | undefined>(test: TypeX<boole
 export function Optional<T extends Type>(test: TypeX<boolean | number>, type: T): TypeT<ReadType<T> | undefined> {
 	type R = ReadType<T>;
 	return {
-		get(s: _stream, obj: any) 	{ return readx(s, test, obj) ? read(s, type) : undefined; },
+		get(s: _stream) 			{ return readx(s, test) ? read(s, type) : undefined; },
 		put(_s: _stream, _v?: R)	{}
 	};
 }
 
 export function Switch<T extends Record<string | number, Type>>(test: TypeX<string | number>, switches: T): TypeT<ReadType<T[keyof T]>> {
 	return {
-		get(s: _stream, obj: any)	{ const t = switches[readx(s, test, obj)]; return (t && read(s, t, obj)); },
+		get(s: _stream)				{ const t = switches[readx(s, test)]; return (t && read(s, t)); },
 		put(_s: _stream, _v: T)		{}// writex(s, test, )}// write(s, switches[test(obj)], v); }
 	};
 }
@@ -708,9 +715,9 @@ function make<T, D, O>(maker: ClassOrFactory<T,D,O>, arg: T, opt?: O) {
 	return isConstructor(maker) ? new maker(arg, opt as O) : maker(arg, opt as O);
 }
 
-export function as<T extends Type, D>(type: T, maker: ClassOrFactory<ReadType<T>, D, any>) : TypeT<D> {
+export function as<T extends Type, D>(type: T, maker: ClassOrFactory<ReadType<T>, D, _stream>) : TypeT<D> {
 	return {
-		get(s: _stream, obj: any)	{ return make(maker, read(s, type, obj), obj); },
+		get(s: _stream)				{ return make(maker, read(s, type), s); },
 		put(s: _stream, v: D)		{ write(s, type, v); }
 	};
 }
