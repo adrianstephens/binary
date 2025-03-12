@@ -2,17 +2,17 @@ import * as utils from './utils';
 export * as utils from './utils';
 
 export interface _stream {
-	be?: boolean;
-	obj?: any;
-	remaining(): number;
-	remainder(): any;
-	tell(): number;
-	seek(offset: number): void;
-	skip(offset: number): void;
-	align(align: number): void;
-	dataview(len: number): DataView;
-	read_buffer(len: number): any;
-	write_buffer(value: Uint8Array): void;
+	be?: boolean;							// read numbers as bigendian/littleendian
+	obj?: any;								// current object being read
+	remaining(): number;					// number of remaining bytes
+	remainder(): any;						// buffer of remaining bytes
+	tell(): number;							// current offset from start of file
+	seek(offset: number): void;				// set current offset from start of file
+	skip(offset: number): void;				// move current offset from start of file
+	align(align: number): void;				// align current offset from start of file
+	dataview(len: number): DataView;		// get DataView containing len bytes, and move current offset
+	read_buffer(len: number): any;			// return buffer containing next len bytes, and move current offset
+	write_buffer(value: Uint8Array): void;	// write buffer contents at current offset, and move current offset
 }
 
 export interface TypeReaderT<T> { get(s: _stream): T }
@@ -89,6 +89,7 @@ export function read<T extends TypeReader>(s: _stream, spec: T, obj?: any) : Rea
 	s.obj	= obj;
 	Object.entries(spec).forEach(([k, t]) => obj[k] = read(s, t));
 	s.obj	= obj.obj;
+	delete obj.obj;
 	return obj;
 }
 
@@ -420,14 +421,14 @@ export const ULEB128: TypeT<number|bigint> = {
 			t |= (b & 0x7f) << (i++ * 7);
 
 		if (!(b & 0x80)) {
-			s.skip(i);
+			s.skip(i + 1);
 			return t;
 		}
 		let tn = BigInt(t);
 		while ((b = buffer[i]) & 0x80)
 			tn |= BigInt(b & 0x7f) << BigInt(i++ * 7);
-		tn |= BigInt(b) << BigInt(i++ * 7);
-		s.skip(i);
+		tn |= BigInt(b) << BigInt(i * 7);
+		s.skip(i + 1);
 		return tn;
 	},
 	put(s: _stream, v: number | bigint) {
@@ -743,7 +744,7 @@ export function asFixed<T extends TypeT<number>>(type: T, fracbits: number) {
 	return as(type, x => x * scale);
 }
 
-// enum types
+// enum helpers
 
 export type EnumType = {
 	[key: string]:	string | number;
@@ -851,14 +852,13 @@ export interface memory {
 	get(address: bigint, len: number): Uint8Array | Promise<Uint8Array>;
 }
 
-export const enum MEM {
-	NONE     	= 0,	// No permissions
-	READ     	= 1,	// Read permission
-	WRITE    	= 2,	// Write permission
-	EXECUTE  	= 4,	// Execute permission
-	RELATIVE	= 8,	// address is relative to dll base
-}
 export class MappedMemory {
+	static readonly	NONE     	= 0;	// No permissions
+	static readonly	READ     	= 1;	// Read permission
+	static readonly	WRITE    	= 2;	// Write permission
+	static readonly	EXECUTE  	= 4;	// Execute permission
+	static readonly	RELATIVE	= 8;	// address is relative to dll base
+
 	constructor(public data: Uint8Array, public address: number, public flags: number) {}
 	resolveAddress(_base: number)		{ return this.address; }
 	slice(begin: number, end?: number)	{ return new MappedMemory(this.data.subarray(begin, end), this.address + begin, this.flags); }
