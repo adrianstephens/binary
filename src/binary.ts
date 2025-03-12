@@ -616,6 +616,7 @@ export function SizeType<T extends Type>(len: TypeX<number>, type: T): TypeT<Rea
 		get(s: _stream) {
 			const size	= readx(s, len);
 			const s2	= clone(s) as stream;
+			s.skip(size);
 			s2.end		= s2.offset + size;
 			return read(s2, type);
 		},
