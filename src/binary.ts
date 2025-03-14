@@ -4,6 +4,7 @@ export * as utils from './utils';
 export interface _stream {
 	be?: boolean;							// read numbers as bigendian/littleendian
 	obj?: any;								// current object being read
+//	post?: (()=>void)[];
 	remaining(): number;					// number of remaining bytes
 	remainder(): any;						// buffer of remaining bytes
 	tell(): number;							// current offset from start of file
@@ -69,6 +70,30 @@ export function Class<T extends Type>(spec: T) {
 		put:(s: _stream, v: any) => void
 	};
 }
+
+export function Extend<B extends abstract new (...args: any[]) => any, T extends Type>(base: B, spec: T) {
+	abstract class X extends base {
+		//static get(s: _stream) {
+		//	return new this(s);
+		//}
+		static put(s: _stream, v: X) {
+			write(s, spec, v);//TBD
+		}
+		constructor(...args: any[]) {
+			const s: _stream = args[0];
+			const obj = s.obj;
+			super(...args);
+			this.obj = obj;
+			read(args[0], spec, this);
+			delete this.obj;
+		}
+	};
+	return X as unknown as (new(s: _stream) => InstanceType<B> & ReadType<T>) & {
+		get:<X extends abstract new (...args: any) => any>(this: X, s: _stream) => InstanceType<X>,
+		put:(s: _stream, v: any) => void
+	};
+}
+
 
 export function isReader(type: any): type is TypeReaderT<any> {
 	return typeof type.get === 'function';
