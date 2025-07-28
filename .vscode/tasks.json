@@ -26,6 +26,13 @@
 			"problemMatcher": [],
 			"dependsOn": "prepublish"
 		},
+		{
+			"type": "shell",
+			"label": "PACKAGE",
+			"command": "npm pack",
+			"problemMatcher": [],
+			"dependsOn": "npm: build"
+		},
 	],
 	"inputs": [
 		{

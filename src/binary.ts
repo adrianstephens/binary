@@ -309,8 +309,8 @@ export class dummy implements _stream {
 //-----------------------------------------------------------------------------
 
 type TypeNumber<T extends number> = T extends 8 | 16 | 24 | 32 | 40 | 48 | 56
-        ? TypeT<number>
-        : TypeT<bigint>;
+	? TypeT<number>
+	: TypeT<bigint>;
 
 function endian_from_stream<T extends number | bigint>(type: (be?: boolean)=>TypeT<T>): TypeT<T> {
 	return {
@@ -496,7 +496,7 @@ export function StringType(len: TypeX<number>, encoding: utils.TextEncoding = 'u
 		}
 	};
 }
-
+/*
 export const NullTerminatedStringType: TypeT<string> = {
 	get(s: _stream) 	{
 		const buf: number[] = [];
@@ -508,6 +508,13 @@ export const NullTerminatedStringType: TypeT<string> = {
 	put(s: _stream, v: string) {
 		return utils.encodeTextInto(v + '\0', s.read_buffer(v.length + 1), 'utf8');
 	}
+};
+*/
+export function NullTerminatedStringType(encoding: utils.TextEncoding = 'utf8'): TypeT<string> {
+	return StringType(encoding === 'utf8'
+		? (s: _stream) => s.remainder().indexOf(0)
+		: (s: _stream) => new Uint16Array(s.remainder()).indexOf(0)
+		, encoding, true, 1);
 };
 
 export function RemainingStringType(encoding: utils.TextEncoding = 'utf8', zeroTerminated = false): TypeT<string> {
@@ -878,9 +885,9 @@ export interface memory {
 }
 
 export class MappedMemory {
-	static readonly	NONE     	= 0;	// No permissions
-	static readonly	READ     	= 1;	// Read permission
-	static readonly	WRITE    	= 2;	// Write permission
+	static readonly	NONE	 	= 0;	// No permissions
+	static readonly	READ	 	= 1;	// Read permission
+	static readonly	WRITE		= 2;	// Write permission
 	static readonly	EXECUTE  	= 4;	// Execute permission
 	static readonly	RELATIVE	= 8;	// address is relative to dll base
 

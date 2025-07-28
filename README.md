@@ -2,6 +2,9 @@
 
 This package provides a set of utilities for reading and writing binary data in TypeScript.
 
+## ☕ Support My Work  
+If you use this package, consider [buying me a tea](https://coff.ee/adrianstephens) to support future updates!  
+
 ## Usage
 
 Here is a basic example of how to use the package:
@@ -55,13 +58,12 @@ Note that in the following, `type` is an instance of a `Type`, and that paramete
 
 ### Numeric
 
-Read a (un)signed n-bit bigendian(be=true) or littleendian(be=false) integer.
+Read a (un)signed n-bit bigendian(be=true) or littleendian(be=false) integer, where n is a multiple of 8:
 
 - `UINT(n, be)`
 - `INT(n, be)`
 
 The following are pre-defined:
-
 - `UINT8`: Read an 8-bit unsigned integer.
 - `INT8`: Read an 8-bit signed integer.
 - `UINT16_LE`: Read a 16-bit little-endian unsigned integer.
@@ -76,14 +78,14 @@ The following are pre-defined:
 - `UINT64_BE`: Read a 64-bit big-endian unsigned integer.
 - `INT64_LE`: Read a 64-bit little-endian signed integer.
 - `INT64_BE`: Read a 64-bit big-endian signed integer.
+
+Read a float:
 - `Float32_LE`: Read a 32-bit little-endian floating-point number.
 - `Float32_BE`: Read a 32-bit big-endian floating-point number.
 - `Float64_LE`: Read a 64-bit little-endian floating-point number.
 - `Float64_BE`: Read a 64-bit big-endian floating-point number.
-- `ULEB128`: Read an unsigned LEB128 (Little Endian Base 128) integer.
 
 When using an `endianStream`, these readers use the endianness specified in the stream:
-
 - `UINT16`: Read a 16-bit unsigned integer with stream-specified endianness.
 - `INT16`: Read a 16-bit signed integer with stream-specified endianness.
 - `UINT32`: Read a 32-bit unsigned integer with stream-specified endianness.
@@ -92,6 +94,10 @@ When using an `endianStream`, these readers use the endianness specified in the 
 - `INT64`: Read a 64-bit signed integer with stream-specified endianness.
 - `Float32`: Read a 32-bit floating-point number with stream-specified endianness.
 - `Float64`: Read a 64-bit floating-point number with stream-specified endianness.
+
+Others:
+- `ULEB128`: Read an unsigned LEB128 (Little Endian Base 128) integer.
+
 
 ### Strings
 

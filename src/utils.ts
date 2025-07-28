@@ -153,6 +153,16 @@ export function to64s(arg: arrayBuffer, be?: boolean) : BigInt64Array;
 export function to64s(arg?: arrayBuffer, be?: boolean) : BigInt64Array | undefined;
 export function to64s(arg?: arrayBuffer, be?: boolean) { return arg && new BigInt64Array(fixEndian64(dupBuffer(arg), be)); }
 
+
+export function findValue(buf: Uint8Array | undefined, value = 0, size = 1/*, be?: boolean*/): number {
+	return !buf ? 0
+		: size === 1 ? buf.indexOf(value)
+		: size === 2 ? (new Uint16Array(buf)).indexOf(value) * 2
+		: size === 4 ? (new Uint32Array(buf)).indexOf(value) * 4
+		: size === 8 ? (new BigInt64Array(buf)).indexOf(BigInt(value)) * 8
+		: 0;
+}
+
 //-----------------------------------------------------------------------------
 //	numbers
 //-----------------------------------------------------------------------------
