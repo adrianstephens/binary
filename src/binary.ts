@@ -512,8 +512,8 @@ export const NullTerminatedStringType: TypeT<string> = {
 */
 export function NullTerminatedStringType(encoding: utils.TextEncoding = 'utf8'): TypeT<string> {
 	return StringType(encoding === 'utf8'
-		? (s: _stream) => s.remainder().indexOf(0)
-		: (s: _stream) => new Uint16Array(s.remainder()).indexOf(0)
+		? (s: _stream) => s.remainder().indexOf(0) + 1
+		: (s: _stream) => new Uint16Array(s.remainder()).indexOf(0) + 1
 		, encoding, true, 1);
 };
 
