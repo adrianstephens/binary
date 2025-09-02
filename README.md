@@ -1,4 +1,7 @@
 # @isopodlabs/binary
+[![npm version](https://img.shields.io/npm/v/@isopodlabs/binary.svg)](https://www.npmjs.com/package/@isopodlabs/binary)
+[![GitHub stars](https://img.shields.io/github/stars/adrianstephens/binary.svg?style=social)](https://github.com/adrianstephens/binary)
+[![License](https://img.shields.io/npm/l/@isopodlabs/binary.svg)](LICENSE)
 
 This package provides a set of utilities for reading and writing binary data in TypeScript.
 

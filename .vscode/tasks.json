@@ -22,7 +22,7 @@
 		{
 			"type": "shell",
 			"label": "PUBLISH",
-			"command": "npm publish",
+			"command": "npm publish --access public",
 			"problemMatcher": [],
 			"dependsOn": "prepublish"
 		},
